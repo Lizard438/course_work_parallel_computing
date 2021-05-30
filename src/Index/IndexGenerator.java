@@ -4,21 +4,28 @@ import java.io.*;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.StringTokenizer;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Stream;
 
 
 public class IndexGenerator {
 
     ArrayList<CompletableFuture<Void>> tasks = new ArrayList<>();
+    Index index = new Index();
 
 
 
-   void lineToDictionary(String line, int offset){
-       System.out.println(offset);
-        System.out.println(line);
+    CompletableFuture<Void> lineToDictionary(String line, int lineStart, int fileId){
         //preprocess
-        //spimi
+        return CompletableFuture.runAsync(()->{
+            StringTokenizer st = new StringTokenizer(line);
+            while(st.hasMoreTokens()){
+                index.addToken(st.nextToken(), fileId, lineStart);
+            }
+        });
     }
 
     public void generateIndex(String path)throws IOException{
@@ -37,7 +44,7 @@ public class IndexGenerator {
 
         //merge?
     }
-    public void processFile( Path file) {
+    public void processFile( Path file, int fileId) {
         System.out.println("processing file");
 
         try{
@@ -48,7 +55,8 @@ public class IndexGenerator {
             String line;
 
             while((line = fileReader.readLine())!= null){
-                lineToDictionary(line, offset);
+                //temp is temporary solution, I will fix this later
+                CompletableFuture<Void> temp = lineToDictionary(line, offset, fileId);
                 offset += line.length();
             }
 
@@ -60,10 +68,15 @@ public class IndexGenerator {
     }
 
     class IndexFileVisitor extends SimpleFileVisitor<Path>{
+       int numerator = 0;
+
         @Override
         public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+            int id = numerator;
+            numerator +=1;
+            index.docTable.put(id,file.toString());
 
-           tasks.add(CompletableFuture.runAsync(()->processFile(file)));
+            tasks.add(CompletableFuture.runAsync(()->processFile(file, id)));
 
             return FileVisitResult.CONTINUE;
 
