@@ -1,12 +1,17 @@
 package Index;
 
-import java.io.Serializable;
+import static java.nio.file.StandardOpenOption.*;
+
+import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class Index {
+public class Index implements Serializable{
 
     ConcurrentHashMap<String, ArrayList<Position>>  dictionary;
     HashMap <Integer,String> docTable;
@@ -17,7 +22,26 @@ public class Index {
     }
 
     void addToken(String token, int docId, int lineStart){
-        //
+
+        Position pos = new Position(docId, lineStart);
+
+        ArrayList<Position> entry = dictionary.get(token);
+
+        if(entry == null){
+            entry = new ArrayList<>();
+        }
+        entry.add(pos);
+        dictionary.put(token, entry);
+    }
+
+    void saveIndex(String filePath){
+
+        try (ObjectOutputStream out = new ObjectOutputStream(
+                Files.newOutputStream(Paths.get(filePath), CREATE))) {
+            out.writeObject(this);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     public static class Position implements Serializable{
