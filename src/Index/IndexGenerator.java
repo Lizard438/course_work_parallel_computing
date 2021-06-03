@@ -18,32 +18,6 @@ public class IndexGenerator {
 
 
 
-    CompletableFuture<Void> lineToDictionary(String line, int lineStart, int fileId){
-        //preprocess
-        return CompletableFuture.runAsync(()->{
-            StringTokenizer st = new StringTokenizer(line);
-            while(st.hasMoreTokens()){
-                index.addToken(st.nextToken(), fileId, lineStart);
-            }
-        });
-    }
-
-    public void generateIndex(String path)throws IOException{
-
-        Files.walkFileTree(Paths.get(path), new IndexFileVisitor());
-
-        //wait for tasks
-            tasks.forEach(t->{
-                try{
-                    t.get();
-                }catch(InterruptedException|ExecutionException e){
-                    e.printStackTrace();
-                }
-            });
-
-
-        //merge?
-    }
     public void processFile( Path file, int fileId) {
         System.out.println("processing file");
 
@@ -55,8 +29,14 @@ public class IndexGenerator {
             String line;
 
             while((line = fileReader.readLine())!= null){
-                //temp is temporary solution, I will fix this later
-                CompletableFuture<Void> temp = lineToDictionary(line, offset, fileId);
+
+                //read and tokenize line, add tokens to dictionary
+                StringTokenizer st = new StringTokenizer(line);
+
+                while(st.hasMoreTokens()){
+                    index.addToken(st.nextToken(), fileId, offset);
+                }
+
                 offset += line.length();
             }
 
@@ -66,6 +46,24 @@ public class IndexGenerator {
         }
 
     }
+
+    public void generateIndex(String path)throws IOException{
+
+        Files.walkFileTree(Paths.get(path), new IndexFileVisitor());
+
+        //wait for tasks
+        tasks.forEach(t->{
+            try{
+                t.get();
+            }catch(InterruptedException|ExecutionException e){
+                e.printStackTrace();
+            }
+        });
+
+
+        //merge?
+    }
+
 
     class IndexFileVisitor extends SimpleFileVisitor<Path>{
        int numerator = 0;
