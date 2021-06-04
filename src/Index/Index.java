@@ -9,6 +9,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.StringTokenizer;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class Index implements Serializable{
@@ -21,17 +22,38 @@ public class Index implements Serializable{
         docTable = new HashMap<>();
     }
 
+    void find(String query){
+        //tokenize query
+
+        /*StringTokenizer st = new StringTokenizer(query);
+
+        while(st.hasMoreTokens()){
+            //st.nextToken(),
+        }*/
+
+
+    }
+
     void addToken(String token, int docId, int lineStart){
 
         Position pos = new Position(docId, lineStart);
 
-        ArrayList<Position> entry = dictionary.get(token);
+        ArrayList<Position> oldList;
+        ArrayList<Position> newList = new ArrayList<>();
 
-        if(entry == null){
-            entry = new ArrayList<>();
-        }
-        entry.add(pos);
-        dictionary.put(token, entry);
+        do {
+            newList.add(pos);
+            oldList = dictionary.putIfAbsent(token, newList);
+
+            if (oldList == null) {
+                break;
+            } else {
+                newList = new ArrayList<>(oldList);
+                newList.add(pos);
+            }
+
+        } while (!dictionary.replace(token, oldList, newList));
+
     }
 
     void saveIndex(String filePath){
