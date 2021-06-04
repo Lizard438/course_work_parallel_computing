@@ -34,6 +34,12 @@ public class Index implements Serializable{
 
     }
 
+    public static Index loadIndex(String filePath) throws IOException, ClassNotFoundException{
+        ObjectInputStream in = new ObjectInputStream(
+                Files.newInputStream(Paths.get(filePath)));
+        return (Index) in.readObject();
+    }
+
     void addToken(String token, int docId, int lineStart){
 
         Position pos = new Position(docId, lineStart);
@@ -76,4 +82,14 @@ public class Index implements Serializable{
             this.lineStart = lineStart;
         }
     }
+
+    public static void main(String []args){
+        try{
+            Index i = loadIndex("./index.txt") ;
+        }catch (IOException | ClassNotFoundException e){
+            e.printStackTrace();
+        }
+
+    }
+
 }
