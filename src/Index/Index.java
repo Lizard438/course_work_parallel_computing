@@ -4,12 +4,10 @@ import static java.nio.file.StandardOpenOption.*;
 
 import java.io.*;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 public class Index implements Serializable{
 
@@ -21,39 +19,59 @@ public class Index implements Serializable{
         docTable = new HashMap<>();
     }
 
-    void find(String query){
-        //tokenize query
+    ArrayList<String> find(String query){
+
+        ArrayList<String> lines = new ArrayList<>(); //result lines
+
+        //normalize, tokenize query
         query = query.toLowerCase();
         ArrayList<String> tokens = new ArrayList<>();
-        //for each token make set of doc ids
-        //if set not null return string arr
+
         StringTokenizer st = new StringTokenizer(query);
 
         while(st.hasMoreTokens()){
             tokens.add(st.nextToken());
         }
+
         if(!tokens.isEmpty()){
-            Set<Integer> docs = dictionary.getOrDefault(tokens.get(0),new ArrayList<>()).stream().map(Position::getID).collect(Collectors.toSet());
+            //for each token make set of doc ids for intersection
+            Set<Integer> docs = dictionary.getOrDefault(tokens.get(0),new ArrayList<>())
+                    .stream().map(Position::getID).collect(Collectors.toSet());
+
             for(int i = 1; i<tokens.size(); i++){
-                docs.retainAll(dictionary.getOrDefault(tokens.get(i),new ArrayList<>()).stream().map(Position::getID).collect(Collectors.toSet()));
+                docs.retainAll(dictionary.getOrDefault(tokens.get(i),new ArrayList<>())
+                        .stream().map(Position::getID).collect(Collectors.toSet()));
             }
 
-            if(!docs.isEmpty()){
-                Map<Integer,Set<Integer>> result = new HashMap<>();
+            if(!docs.isEmpty()){  //getting results from intersection
+                Map<Integer,Set<Integer>> result = new HashMap<>(); // - map(docId, set of lines positions)
 
                 for( String token : tokens){
-                    result.putAll( dictionary.get(token).stream().filter(pos -> docs.contains(pos.docID)).collect(Collectors.groupingBy(Position::getID, Collectors.mapping(Position::getLineStart, Collectors.toSet()) )));
+
+                    result.putAll( dictionary.get(token).stream().filter(pos -> docs.contains(pos.docID))
+                            .collect(Collectors.groupingBy(Position::getID,
+                                    Collectors.mapping(Position::getLineStart, Collectors.toSet()) )));
                 }
-                /////////
-                for(Set<Integer> i : result.values()){
-                    System.out.println(i);
-                }
+
+
+                result.forEach((docId, list) ->{ //getting lines containing query
+
+                    for( int pos: list){
+                        try{
+                            lines.add(Files.lines(Paths.get(docTable.get(docId))).skip(pos-1).findFirst().get());
+                        }catch (IOException e){
+                            e.printStackTrace();
+                        }
+                    }
+                });
+
+               return lines;
 
             }
-            System.out.println("empty");
 
         }
-
+        lines.add("Your search did not match any documents");
+        return lines;
 
     }
 
@@ -63,9 +81,9 @@ public class Index implements Serializable{
         return (Index) in.readObject();
     }
 
-    void addToken(String token, int docId, int lineStart){
+    void addToken(String token, int docId, int lineNumber){
 
-        Position pos = new Position(docId, lineStart);
+        Position pos = new Position(docId, lineNumber);
 
         ArrayList<Position> oldList;
         ArrayList<Position> newList = new ArrayList<>();
@@ -98,18 +116,18 @@ public class Index implements Serializable{
     public static class Position implements Serializable{
 
         int docID;
-        int lineStart;
+        int lineNumber;
 
-        public Position(int docID, int lineStart){
+        public Position(int docID, int lineNumber){
             this.docID = docID;
-            this.lineStart = lineStart;
+            this.lineNumber = lineNumber;
         }
 
         int getID(){
             return this.docID;
         }
         int getLineStart(){
-            return this.lineStart;
+            return this.lineNumber;
         }
     }
 
