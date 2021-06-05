@@ -6,11 +6,10 @@ import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.StringTokenizer;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class Index implements Serializable{
 
@@ -24,12 +23,36 @@ public class Index implements Serializable{
 
     void find(String query){
         //tokenize query
-
-        /*StringTokenizer st = new StringTokenizer(query);
+        query = query.toLowerCase();
+        ArrayList<String> tokens = new ArrayList<>();
+        //for each token make set of doc ids
+        //if set not null return string arr
+        StringTokenizer st = new StringTokenizer(query);
 
         while(st.hasMoreTokens()){
-            //st.nextToken(),
-        }*/
+            tokens.add(st.nextToken());
+        }
+        if(!tokens.isEmpty()){
+            Set<Integer> docs = dictionary.getOrDefault(tokens.get(0),new ArrayList<>()).stream().map(Position::getID).collect(Collectors.toSet());
+            for(int i = 1; i<tokens.size(); i++){
+                docs.retainAll(dictionary.getOrDefault(tokens.get(i),new ArrayList<>()).stream().map(Position::getID).collect(Collectors.toSet()));
+            }
+
+            if(!docs.isEmpty()){
+                Map<Integer,Set<Integer>> result = new HashMap<>();
+
+                for( String token : tokens){
+                    result.putAll( dictionary.get(token).stream().filter(pos -> docs.contains(pos.docID)).collect(Collectors.groupingBy(Position::getID, Collectors.mapping(Position::getLineStart, Collectors.toSet()) )));
+                }
+                /////////
+                for(Set<Integer> i : result.values()){
+                    System.out.println(i);
+                }
+
+            }
+            System.out.println("empty");
+
+        }
 
 
     }
@@ -81,11 +104,21 @@ public class Index implements Serializable{
             this.docID = docID;
             this.lineStart = lineStart;
         }
+
+        int getID(){
+            return this.docID;
+        }
+        int getLineStart(){
+            return this.lineStart;
+        }
     }
 
     public static void main(String []args){
         try{
             Index i = loadIndex("./index.txt") ;
+            BufferedReader console = new BufferedReader(new InputStreamReader(System.in));
+            String msg = console.readLine();
+            i.find(msg);
         }catch (IOException | ClassNotFoundException e){
             e.printStackTrace();
         }
