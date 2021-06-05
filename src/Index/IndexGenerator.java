@@ -5,6 +5,7 @@ import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.StringTokenizer;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -19,7 +20,7 @@ public class IndexGenerator {
 
 
     public void processFile( Path file, int fileId) {
-        System.out.println("processing file");
+
 
         try{
 
@@ -31,6 +32,8 @@ public class IndexGenerator {
             while((line = fileReader.readLine())!= null){
 
                 //read and tokenize line, add tokens to dictionary
+                line = line.toLowerCase();
+
                 StringTokenizer st = new StringTokenizer(line);
 
                 while(st.hasMoreTokens()){
@@ -60,7 +63,7 @@ public class IndexGenerator {
             }
         });
 
-
+        index.saveIndex("./index.txt");
         //merge?
     }
 
@@ -71,6 +74,7 @@ public class IndexGenerator {
         @Override
         public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
             int id = numerator;
+            System.out.println(id);
             numerator +=1;
             index.docTable.put(id,file.toString());
 
