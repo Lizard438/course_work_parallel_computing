@@ -4,12 +4,9 @@ import java.io.*;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Locale;
 import java.util.StringTokenizer;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.stream.Stream;
 
 
 public class IndexGenerator {
@@ -24,9 +21,8 @@ public class IndexGenerator {
 
         try{
 
-            BufferedReader fileReader = new BufferedReader(new InputStreamReader(new FileInputStream(file.toFile())));
+            LineNumberReader fileReader = new LineNumberReader(new InputStreamReader(new FileInputStream(file.toFile())));
 
-            int offset = 0;
             String line;
 
             while((line = fileReader.readLine())!= null){
@@ -37,10 +33,9 @@ public class IndexGenerator {
                 StringTokenizer st = new StringTokenizer(line);
 
                 while(st.hasMoreTokens()){
-                    index.addToken(st.nextToken(), fileId, offset);
+                    index.addToken(st.nextToken(), fileId, fileReader.getLineNumber());
                 }
 
-                offset += line.length();
             }
 
 
