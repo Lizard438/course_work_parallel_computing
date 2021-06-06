@@ -11,23 +11,31 @@ import java.util.LinkedList;
 public class Server {
 
     public static void main(String[] args){
-        final int port = 5000;
+
+        if(args.length != 1){
+            System.err.println("Usage: java Server <port number>");
+            System.exit(1);
+        }
+
+        int portNumber = Integer.parseInt(args[0]);
+
         LinkedList<ClientHandler> clientsList = new LinkedList<>();
+        Index index;
         try{
-            Index index = Index.loadIndex("./index.txt") ;
+            index = Index.loadIndex("./index.txt") ;
         }catch (IOException | ClassNotFoundException e){
-            e.printStackTrace();
+            return;
         }
 
         try{
-            try (ServerSocket serverSocket = new ServerSocket(port)) {
+            try (ServerSocket serverSocket = new ServerSocket(portNumber)) {
 
                 System.out.println("Server is running.");
 
                 while (true) {
                     Socket socket = serverSocket.accept();
                     try {
-                        clientsList.add(new ClientHandler(socket));
+                        clientsList.add(new ClientHandler(socket, index));
                     } catch (IOException e) {
                         socket.close();
                     }
