@@ -131,16 +131,4 @@ public class Index implements Serializable{
         }
     }
 
-    public static void main(String []args){
-        try{
-            Index i = loadIndex("./index.txt") ;
-            BufferedReader console = new BufferedReader(new InputStreamReader(System.in));
-            String msg = console.readLine();
-            i.find(msg);
-        }catch (IOException | ClassNotFoundException e){
-            e.printStackTrace();
-        }
-
-    }
-
 }
