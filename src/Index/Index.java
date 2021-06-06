@@ -19,7 +19,7 @@ public class Index implements Serializable{
         docTable = new HashMap<>();
     }
 
-    ArrayList<String> find(String query){
+    public ArrayList<String> find(String query){
 
         ArrayList<String> lines = new ArrayList<>(); //result lines
 
