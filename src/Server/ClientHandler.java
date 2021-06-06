@@ -18,7 +18,7 @@ public class ClientHandler extends Thread{
         this.socket = socket;
         this.index = index;
 
-        start();
+        //start();
         try{
 
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
@@ -45,30 +45,25 @@ public class ClientHandler extends Thread{
     public void run() {
 
         String request;
-        ArrayList<String> result = new ArrayList<>();
+        ArrayList<String> result;
 
         try{
-            result.add("Type 'Q' to quite.");
-            out.writeObject(result);
-            result.clear();
 
             while (true){
 
-                result.add("Search: ");
-                out.writeObject(result);
+                out.writeObject("Search: ");
 
                 request = in.readLine();
+
                 if(request.equals("Q") || request.equals("q")){
                     break;
                 }
                 result = index.find(request);
 
                 out.writeObject(result);
-                result.clear();
 
             }
-        }catch(IOException ignored){
-        }finally {
+        }catch(IOException e){
             this.downService();
         }
     }
