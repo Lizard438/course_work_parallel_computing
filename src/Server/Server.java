@@ -6,7 +6,6 @@ import Index.Index;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.LinkedList;
 
 public class Server {
 
@@ -19,7 +18,6 @@ public class Server {
 
         int portNumber = Integer.parseInt(args[0]);
 
-        LinkedList<ClientHandler> clientsList = new LinkedList<>();
         Index index;
         try{
             index = Index.loadIndex("./index.txt") ;
@@ -34,11 +32,7 @@ public class Server {
 
                 while (true) {
                     Socket socket = serverSocket.accept();
-                    try {
-                        clientsList.add(new ClientHandler(socket, index));
-                    } catch (IOException e) {
-                        socket.close();
-                    }
+                    new ClientHandler(socket, index);
                 }
             }
 
