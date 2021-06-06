@@ -10,49 +10,67 @@ public class ClientHandler extends Thread{
 
     Socket socket;
     BufferedReader in;
-    BufferedWriter out;
+    ObjectOutputStream out;
+
     Index index;
 
-    ClientHandler(Socket socket, Index index) throws IOException {
+    ClientHandler(Socket socket, Index index)  {
         this.socket = socket;
         this.index = index;
 
-        in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-        out = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
         start();
+        try{
+
+            in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            out = new ObjectOutputStream(socket.getOutputStream());
+            start();
+
+        }catch (IOException e){
+            downService();
+        }
+
+    }
+
+    void downService(){
+        try{
+            if(!socket.isClosed()){
+                socket.close();
+                in.close();
+                out.close();
+            }
+        }catch (IOException ignored){}
     }
 
     @Override
     public void run() {
-        String query;
-        ArrayList<String> result;
+
+        String request;
+        ArrayList<String> result = new ArrayList<>();
+
         try{
-            send("Type 'Q' to quite.");
+            result.add("Type 'Q' to quite.");
+            out.writeObject(result);
+            result.clear();
 
             while (true){
 
-                send("\nSearch: ");
-                query = in.readLine();
-                if(query.equals("Q")||query.equals("q")){
+                result.add("Search: ");
+                out.writeObject(result);
+
+                request = in.readLine();
+                if(request.equals("Q") || request.equals("q")){
                     break;
                 }
-                result = index.find(query);
+                result = index.find(request);
 
-                for(String line : result){
-                    send(line);
-                }
+                out.writeObject(result);
+                result.clear();
 
             }
-        }catch(IOException e){
-
+        }catch(IOException ignored){
+        }finally {
+            this.downService();
         }
-    }
-
-    void send(String msg){
-        try{
-            out.write(msg + "\n");
-            out.flush();
-        }catch(IOException ignored){}
     }
 
 }
