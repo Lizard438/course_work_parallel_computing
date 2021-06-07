@@ -9,45 +9,24 @@ import java.util.ArrayList;
 public class ClientHandler extends Thread{
 
     Socket socket;
-    BufferedReader in;
-    ObjectOutputStream out;
-
     Index index;
 
     ClientHandler(Socket socket, Index index)  {
         this.socket = socket;
         this.index = index;
-
-        //start();
-        try{
-
-            in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            out = new ObjectOutputStream(socket.getOutputStream());
-            start();
-
-        }catch (IOException e){
-            downService();
-        }
-
+        start();
     }
 
-    void downService(){
-        try{
-            if(!socket.isClosed()){
-                socket.close();
-                in.close();
-                out.close();
-            }
-        }catch (IOException ignored){}
-    }
 
     @Override
     public void run() {
 
-        String request;
-        ArrayList<String> result;
-
-        try{
+        try(
+                BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+                ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream())
+        ){
+            String request;
+            ArrayList<String> result;
 
             while (true){
 
@@ -63,8 +42,10 @@ public class ClientHandler extends Thread{
                 out.writeObject(result);
 
             }
-        }catch(IOException e){
-            this.downService();
+
+
+        }catch (IOException e){
+            e.printStackTrace();
         }
     }
 
