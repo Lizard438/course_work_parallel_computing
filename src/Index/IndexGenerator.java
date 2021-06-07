@@ -19,10 +19,8 @@ public class IndexGenerator {
     public void processFile( Path file, int fileId) {
 
 
-        try{
-
-            LineNumberReader fileReader = new LineNumberReader(new InputStreamReader(new FileInputStream(file.toFile())));
-
+        try(LineNumberReader fileReader = new LineNumberReader(new InputStreamReader(new FileInputStream(file.toFile()))))
+        {
             String line;
 
             while((line = fileReader.readLine())!= null){
@@ -59,7 +57,6 @@ public class IndexGenerator {
         });
 
         index.saveIndex("./index.txt");
-        //merge?
     }
 
 
@@ -69,7 +66,7 @@ public class IndexGenerator {
         @Override
         public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
             int id = numerator;
-            System.out.println(id);
+
             numerator +=1;
             index.docTable.put(id,file.toString());
 
@@ -82,8 +79,18 @@ public class IndexGenerator {
 
     public static void main(String []args){
         IndexGenerator i = new IndexGenerator();
-        try{
-            i.generateIndex("c:/Users/liza/IdeaProjects/filesCourse");
+        try(BufferedReader console = new BufferedReader( new InputStreamReader(System.in)))
+        {
+            System.out.println("Enter path to directory to generate index: ");
+            String path = console.readLine();
+
+            if(path.equals("default")){
+                path = "c:/Users/liza/IdeaProjects/filesCourse";
+            }
+
+            i.generateIndex(path);
+            System.out.println("Index ready.");
+
         }catch(IOException e){
             e.printStackTrace();
         }

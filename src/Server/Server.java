@@ -20,6 +20,7 @@ public class Server {
 
         Index index;
         try{
+            System.out.println("Loading...");
             index = Index.loadIndex("./index.txt") ;
         }catch (IOException | ClassNotFoundException e){
             return;

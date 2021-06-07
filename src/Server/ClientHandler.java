@@ -43,9 +43,17 @@ public class ClientHandler extends Thread{
 
             }
 
+        }catch (IOException ignored){
+        }
+        finally {
+            try{
+                if(!socket.isClosed()){
+                    socket.close();
+                }
+            }catch (IOException e){
+                e.printStackTrace();
+            }
 
-        }catch (IOException e){
-            e.printStackTrace();
         }
     }
 

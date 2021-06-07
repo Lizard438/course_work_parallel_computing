@@ -29,17 +29,25 @@ public class Client {
 
 
         } catch (IOException e){
+            if(socket == null){
+                System.out.println("Can not connect.");
+            }
             downService();
         }
     }
 
     void downService(){
         try{
-            if(!socket.isClosed()){
-                in.close();
-                out.close();
-                socket.close();
-
+            if(socket != null){
+                if(in != null){
+                    in.close();
+                }
+                if(out != null){
+                    out.close();
+                }
+                if(!socket.isClosed()){
+                    socket.close();
+                }
             }
         }catch(IOException ignored){}
     }
@@ -101,11 +109,10 @@ public class Client {
                 client.console.readLine();
 
             }
-        }catch(IOException ignored){}
+        }catch(IOException | NullPointerException ignored){}
         finally {
             client.downService();
         }
-
 
     }
 

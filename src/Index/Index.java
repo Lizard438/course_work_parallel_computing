@@ -34,12 +34,13 @@ public class Index implements Serializable{
         }
 
         if(!tokens.isEmpty()){
-            //for each token make set of doc ids for intersection
-            Set<Integer> docs = dictionary.getOrDefault(tokens.get(0),new ArrayList<>())
+            //for each token make set of doc ids for next intersection
+
+            Set<Integer> docs = dictionary.getOrDefault(tokens.get(0),new ArrayList<>()) //initial set
                     .stream().map(Position::getID).collect(Collectors.toSet());
 
             for(int i = 1; i<tokens.size(); i++){
-                docs.retainAll(dictionary.getOrDefault(tokens.get(i),new ArrayList<>())
+                docs.retainAll(dictionary.getOrDefault(tokens.get(i),new ArrayList<>()) //intersection
                         .stream().map(Position::getID).collect(Collectors.toSet()));
             }
 
@@ -54,7 +55,7 @@ public class Index implements Serializable{
                 }
 
 
-                result.forEach((docId, list) ->{ //getting lines containing query
+                result.forEach((docId, list) ->{ //getting lines containing query from docs
 
                     for( int pos: list){
                         try{
@@ -76,8 +77,10 @@ public class Index implements Serializable{
     }
 
     public static Index loadIndex(String filePath) throws IOException, ClassNotFoundException{
+
         ObjectInputStream in = new ObjectInputStream(
                 Files.newInputStream(Paths.get(filePath)));
+
         return (Index) in.readObject();
     }
 
@@ -106,8 +109,10 @@ public class Index implements Serializable{
     void saveIndex(String filePath){
 
         try (ObjectOutputStream out = new ObjectOutputStream(
-                Files.newOutputStream(Paths.get(filePath), CREATE))) {
+                Files.newOutputStream(Paths.get(filePath), CREATE)))
+        {
             out.writeObject(this);
+
         } catch (IOException e) {
             e.printStackTrace();
         }
