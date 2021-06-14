@@ -97,13 +97,17 @@ public class IndexGenerator {
             }
 
             long endTime = System.currentTimeMillis();
+
+            System.out.println("Pool parallelism: "+pool.getParallelism());
             pool.shutdown();
+
             String line = i+","+(endTime - startTime);
             result.add(line);
         }
 
         try (PrintWriter pw = new PrintWriter("c:/Users/liza/IdeaProjects/CourseWork/time.csv")) {
             result.forEach(pw::println);
+
         }catch(FileNotFoundException e){
             System.out.println("file not found");
         }
@@ -113,9 +117,11 @@ public class IndexGenerator {
     public static void main(String []args){
 
         if(args.length != 0){
+
             int minThreads = Integer.parseInt(args[0]);
             int maxThreads = Integer.parseInt(args[1]);
             int step = Integer.parseInt(args[2]);
+
             System.out.println("Time Analysis mode");
             timeAnalysis(minThreads, maxThreads, step);
 
@@ -123,6 +129,7 @@ public class IndexGenerator {
 
             IndexGenerator i = new IndexGenerator();
             pool = ForkJoinPool.commonPool();
+
             try(BufferedReader console = new BufferedReader( new InputStreamReader(System.in)))
             {
                 System.out.println("Enter path to directory to generate index: ");
@@ -133,7 +140,10 @@ public class IndexGenerator {
                 }
 
                 i.generateIndex(path);
+
                 System.out.println("Index ready.");
+                System.out.println("Pool parallelism: "+pool.getParallelism());
+
 
             }catch(IOException e){
                 e.printStackTrace();
