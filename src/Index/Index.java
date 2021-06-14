@@ -88,21 +88,18 @@ public class Index implements Serializable{
 
         Position pos = new Position(docId, lineNumber);
 
-        ArrayList<Position> oldList;
-        ArrayList<Position> newList = new ArrayList<>();
 
-        do {
-            newList.add(pos);
-            oldList = dictionary.putIfAbsent(token, newList);
-
-            if (oldList == null) {
-                break;
-            } else {
-                newList = new ArrayList<>(oldList);
+        dictionary.compute(token, (key, val)->{
+            if(val != null){
+                val.add(pos);
+                return val;
+            }else{
+                ArrayList<Position> newList = new ArrayList<>();
                 newList.add(pos);
+                return newList;
             }
 
-        } while (!dictionary.replace(token, oldList, newList));
+        });
 
     }
 
