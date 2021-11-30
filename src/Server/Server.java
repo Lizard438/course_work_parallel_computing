@@ -33,7 +33,7 @@ public class Server {
 
                 while (true) {
                     Socket socket = serverSocket.accept();
-                    new ClientHandler(socket, index);
+                    new ClientHandler(socket, index).start();
                 }
             }
 
