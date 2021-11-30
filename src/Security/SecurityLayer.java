@@ -15,6 +15,7 @@ import java.security.spec.X509EncodedKeySpec;
 public class SecurityLayer {
 
     public static final String ALGORITHM = "RSA";
+    public static final String SYMMETRIC = "AES";
     public static final String SIGNATURE = "SHA256withRSA";
     private static int size = 256;
     private BufferedInputStream in;
@@ -24,7 +25,7 @@ public class SecurityLayer {
 
     //hasher
 
-    public SecurityLayer(InputStream in, OutputStream out){
+    public void init(InputStream in, OutputStream out){
         this.in = new BufferedInputStream(in);
         this.out = new BufferedOutputStream(out);
     }
@@ -38,6 +39,47 @@ public class SecurityLayer {
         byte[] data = new byte[in.available()];
         in.read(data);
         return data;
+    }
+
+    public byte[] receive() throws IOException {
+        byte[] encrypted = receiveBytes();
+        try{
+            byte[] decrypted = decrypt(encrypted);
+            return decrypted;
+            //add digest verification
+        }catch(NoSuchPaddingException |
+                NoSuchAlgorithmException |
+                InvalidKeyException |
+                BadPaddingException |
+                IllegalBlockSizeException e){
+            throw new IOException("Decryption failed.", e);
+        }
+    }
+
+    public void send(byte[] data) throws IOException {
+        try{
+            byte[] encrypted = encrypt(data);
+            sendBytes(encrypted);
+        }catch (NoSuchPaddingException |
+                NoSuchAlgorithmException |
+                InvalidKeyException |
+                BadPaddingException |
+                IllegalBlockSizeException e){
+            e.printStackTrace();
+        }
+
+    }
+
+    private byte[] encrypt(byte[] data) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
+        Cipher cipher = Cipher.getInstance(SYMMETRIC);
+        cipher.init(Cipher.ENCRYPT_MODE, key);
+        return cipher.doFinal(data);
+    }
+
+    private byte[] decrypt( byte[] data) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
+        Cipher cipher = Cipher.getInstance(SYMMETRIC);
+        cipher.init(Cipher.DECRYPT_MODE, key);
+        return cipher.doFinal(data);
     }
 
     public void clientHandshake() throws IOException {
@@ -130,7 +172,7 @@ public class SecurityLayer {
         return sign.sign();
     }
 
-    public KeyPair loadKeys(String keyFile, String keyFilePub){
+    public KeyPair loadKeys(String keyFile, String keyFilePub) throws IOException{
         try (ObjectInputStream kf = new ObjectInputStream(Files.newInputStream(Paths.get(keyFile)));
              ObjectInputStream kfp = new ObjectInputStream(Files.newInputStream(Paths.get(keyFilePub)))){
 
@@ -147,13 +189,12 @@ public class SecurityLayer {
             PublicKey publicKey = factory.generatePublic(rsaPublicKeySpec);
 
             return new KeyPair(publicKey, privateKey);
-        } catch (InvalidKeySpecException | NoSuchAlgorithmException | ClassNotFoundException | IOException e){
-            e.printStackTrace();
+        } catch (InvalidKeySpecException | NoSuchAlgorithmException | ClassNotFoundException e){
+            throw new IOException("Key loading exception.", e);
         }
-        return null;
     }
 
-    public PublicKey loadKey(String KeyFilePub){
+    public PublicKey loadKey(String KeyFilePub) throws IOException{
         try (ObjectInputStream in = new ObjectInputStream(Files.newInputStream(Paths.get(KeyFilePub)))) {
             BigInteger modulus = (BigInteger) in.readObject();
             BigInteger exponent = (BigInteger) in.readObject();
@@ -162,10 +203,9 @@ public class SecurityLayer {
             KeyFactory factory = KeyFactory.getInstance(ALGORITHM);
             return factory.generatePublic(rsaPublicKeySpec);
 
-        } catch (InvalidKeySpecException | NoSuchAlgorithmException | ClassNotFoundException | IOException e) {
-            e.printStackTrace();
+        } catch (InvalidKeySpecException | NoSuchAlgorithmException | ClassNotFoundException e) {
+            throw new IOException("Key loading exception.", e);
         }
-        return null;
     }
 
     private SecretKey genAES() throws NoSuchAlgorithmException {
