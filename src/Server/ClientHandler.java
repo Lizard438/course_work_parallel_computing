@@ -1,6 +1,7 @@
 package Server;
 
 import Index.Index;
+import Security.SecurityLayer;
 
 import java.io.*;
 import java.net.Socket;
@@ -10,11 +11,13 @@ public class ClientHandler extends Thread{
 
     Socket socket;
     Index index;
+    SecurityLayer securityLayer;
 
     ClientHandler(Socket socket, Index index)  {
         this.socket = socket;
         this.index = index;
-        start();
+        securityLayer = new SecurityLayer();
+        //start();
     }
 
 
@@ -22,27 +25,29 @@ public class ClientHandler extends Thread{
     public void run() {
 
         try(
-                BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream())
+                InputStream in = socket.getInputStream();
+                OutputStream out = socket.getOutputStream();
+                //BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+                //ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
+
         ){
+            securityLayer.init(in, out);
+            //serverHandshake
             String request;
             ArrayList<String> result;
 
             while (true){
-
-                out.writeObject("Search: ");
-
-                request = in.readLine();
-
-                if(request.equals("Q") || request.equals("q")){
-                    break;
+                //out.writeObject("Search: ");
+                try{
+                    request = getRequest();
+                    result = index.find(request);
+                    sendResult(result);
+                }catch(NullPointerException e){
+                    result = new ArrayList<>();
+                    result.add("Request error occurred.");
+                    sendResult(result);
                 }
-                result = index.find(request);
-
-                out.writeObject(result);
-
             }
-
         }catch (IOException ignored){
         }
         finally {
@@ -55,6 +60,24 @@ public class ClientHandler extends Thread{
             }
 
         }
+    }
+
+    public String getRequest() throws IOException {
+        byte[] data = securityLayer.receive();
+        return new String(data);
+    }
+
+    public void sendResult(ArrayList<String> result) throws IOException{
+        byte[] data = serializeResult(result);
+        securityLayer.send(data);
+    }
+
+    private byte[] serializeResult(ArrayList<String> result) throws IOException {
+        ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
+        ObjectOutputStream out = new ObjectOutputStream(byteStream);
+        out.writeObject(result);
+        out.flush();
+        return byteStream.toByteArray();
     }
 
 }
