@@ -34,18 +34,16 @@ public class ClientHandler extends Thread{
             securityLayer.init(in, out);
             //serverHandshake
             String request;
-            ArrayList<String> result;
+            //ArrayList<String> result;
 
             while (true){
                 //out.writeObject("Search: ");
                 try{
                     request = getRequest();
-                    result = index.find(request);
-                    sendResult(result);
+                    String[] result = index.find(request);
+                    sendMessage(result);
                 }catch(NullPointerException e){
-                    result = new ArrayList<>();
-                    result.add("Request error occurred.");
-                    sendResult(result);
+                    sendMessage("Request error occurred.");
                 }
             }
         }catch (IOException ignored){
@@ -67,15 +65,15 @@ public class ClientHandler extends Thread{
         return new String(data);
     }
 
-    public void sendResult(ArrayList<String> result) throws IOException{
-        byte[] data = serializeResult(result);
+    public void sendMessage(String... message) throws IOException{
+        byte[] data = serializeMessage(message);
         securityLayer.send(data);
     }
 
-    private byte[] serializeResult(ArrayList<String> result) throws IOException {
+    private byte[] serializeMessage(String[] message) throws IOException {
         ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
         ObjectOutputStream out = new ObjectOutputStream(byteStream);
-        out.writeObject(result);
+        out.writeObject(message);
         out.flush();
         return byteStream.toByteArray();
     }
