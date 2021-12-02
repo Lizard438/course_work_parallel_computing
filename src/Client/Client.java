@@ -1,82 +1,74 @@
 package Client;
 
+import Security.SecurityLayer;
+
 import java.io.*;
 import java.net.Socket;
+import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 
 public class Client {
 
-    String hostName;
-    int portNumber;
-
     Socket socket;
-    ObjectInputStream in;
+    SecurityLayer securityLayer;
     BufferedReader console;
-    BufferedWriter out;
 
-    Client(int portNumber, String hostName){
-
-        this.hostName = hostName;
-        this.portNumber = portNumber;
-
+    public static Client connect(String hostName, int portNumber) throws  IOException{
+        Socket socket = null;
         try {
             socket = new Socket(hostName, portNumber);
-
-            in = new ObjectInputStream(socket.getInputStream());
-            console = new BufferedReader( new InputStreamReader(System.in));
-
-            out = new BufferedWriter( new OutputStreamWriter(socket.getOutputStream()));
-
-
-        } catch (IOException e){
-            if(socket == null){
-                System.out.println("Can not connect.");
-            }
-            downService();
-        }
-    }
-
-    void downService(){
-        try{
+            Client client = new Client(socket);
+            client.establishSecurity(socket.getInputStream(), socket.getOutputStream());
+            return client;
+        } catch (IOException e) {
             if(socket != null){
-                if(in != null){
-                    in.close();
-                }
-                if(out != null){
-                    out.close();
-                }
                 if(!socket.isClosed()){
                     socket.close();
                 }
             }
-        }catch(IOException ignored){}
-    }
-
-    void getMessage() throws IOException{
-
-        try{
-            String msg = (String) in.readObject();
-            System.out.println(msg);
-
-        }catch (ClassNotFoundException e){
-            System.out.println("Bad result type.");
+            throw new IOException("Connection failed.", e);
         }
     }
 
-    void getResult() throws IOException{
+    Client(Socket socket){
+        this.socket = socket;
+        securityLayer = new SecurityLayer();
+        console = new BufferedReader( new InputStreamReader(System.in));
+    }
 
-        try{
+    public void establishSecurity(InputStream in, OutputStream out){
+        securityLayer.init(in, out);
+        //client handshake
+    }
 
-            ArrayList<String> result = (ArrayList<String>) in.readObject();
-
-            for(String line : result){
-                System.out.println("\n"+line);
-            }
-
-        }catch (ClassNotFoundException e){
-            System.out.println("Bad result type.");
+    void downService() throws IOException {
+        if(!socket.isClosed()){
+            socket.close();
         }
     }
+
+    void getMessage() throws IOException, ClassNotFoundException {
+        byte[] data = securityLayer.receive();
+        String[] message = deserializeMessage(data);
+        for (String line : message){
+            System.out.println(line);
+        }
+    }
+
+    String readConsole() throws IOException {
+        return console.readLine();
+    }
+
+    public String[] deserializeMessage(byte[] data) throws IOException, ClassNotFoundException {
+        ByteArrayInputStream in = new ByteArrayInputStream(data);
+        return (String[]) new ObjectInputStream(in).readObject();
+    }
+
+    public void sendMessage(String message) throws IOException {
+        securityLayer.send(message.getBytes(StandardCharsets.UTF_8));
+    }
+
 
 
     public static void main(String[] args){
@@ -88,31 +80,26 @@ public class Client {
 
         String hostName = args[0];
         int portNumber = Integer.parseInt(args[1]);
-
-        Client client = new Client(portNumber, hostName);
-
         try{
-            while (true){
-                client.getMessage();
+            Client client = connect(hostName, portNumber);
+            try{
+                while (true){
+                    client.getMessage();
 
-                String request = client.console.readLine();
+                    String request = client.readConsole();
 
-                client.out.write(request+"\n");
-                client.out.flush();
+                    client.sendMessage(request);
 
-                if(request.equals("Q")||request.equals("q")){
-                    break;
+                    client.getMessage();
+                    System.out.println("Press Enter to continue.");
+                    client.readConsole();
+
                 }
-
-                client.getResult();
-                System.out.println("Press Enter to continue.");
-                client.console.readLine();
-
+            }catch (IOException | ClassNotFoundException e){
+                client.downService();
             }
+
         }catch(IOException | NullPointerException ignored){}
-        finally {
-            client.downService();
-        }
 
     }
 
