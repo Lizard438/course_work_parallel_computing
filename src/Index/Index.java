@@ -19,7 +19,7 @@ public class Index implements Serializable{
         docTable = new HashMap<>();
     }
 
-    public ArrayList<String> find(String query){
+    public String[] find(String query){
 
         ArrayList<String> lines = new ArrayList<>(); //result lines
 
@@ -66,13 +66,13 @@ public class Index implements Serializable{
                     }
                 });
 
-               return lines;
+               return lines.toArray(new String[0]);
 
             }
 
         }
         lines.add("Your search did not match any documents");
-        return lines;
+        return lines.toArray(new String[0]);
 
     }
 
