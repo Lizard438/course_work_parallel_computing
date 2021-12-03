@@ -4,6 +4,7 @@ import javax.crypto.*;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.*;
 import java.math.BigInteger;
+import java.net.ConnectException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.*;
@@ -14,30 +15,31 @@ import java.security.spec.X509EncodedKeySpec;
 
 public class SecurityLayer {
 
-    public static final String ALGORITHM = "RSA";
+    public static final String ASYMMETRIC = "RSA";
     public static final String SYMMETRIC = "AES";
     public static final String SIGNATURE = "SHA256withRSA";
     private static int size = 256;
-    private BufferedInputStream in;
-    private BufferedOutputStream out;
-    private SecretKey key;
-    //aes
+    private DataInputStream in;
+    private DataOutputStream out;
+    private byte[] key;
 
     //hasher
 
     public void init(InputStream in, OutputStream out){
-        this.in = new BufferedInputStream(in);
-        this.out = new BufferedOutputStream(out);
+        this.in = new DataInputStream(new BufferedInputStream(in));
+        this.out = new DataOutputStream(new BufferedOutputStream(out));
     }
 
     public void sendBytes(byte[] data) throws IOException {
+        out.writeInt(data.length);
         out.write(data);
         out.flush();
     }
 
     public byte[] receiveBytes() throws IOException {
-        byte[] data = new byte[in.available()];
-        in.read(data);
+        int length = in.readInt();
+        byte[] data = new byte[length];
+        in.readFully(data);
         return data;
     }
 
@@ -71,89 +73,86 @@ public class SecurityLayer {
     }
 
     private byte[] encrypt(byte[] data) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
+        SecretKeySpec secretKey = new SecretKeySpec(key, SYMMETRIC);
         Cipher cipher = Cipher.getInstance(SYMMETRIC);
-        cipher.init(Cipher.ENCRYPT_MODE, key);
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey);
         return cipher.doFinal(data);
     }
 
     private byte[] decrypt( byte[] data) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
+        SecretKeySpec secretKey = new SecretKeySpec(key, SYMMETRIC);
         Cipher cipher = Cipher.getInstance(SYMMETRIC);
-        cipher.init(Cipher.DECRYPT_MODE, key);
+        cipher.init(Cipher.DECRYPT_MODE, secretKey);
         return cipher.doFinal(data);
     }
 
-    public void clientHandshake() throws IOException {
-        KeyPair clientKeys = loadKeys("file", "file_pub");
-        PublicKey server_pub = loadKey("file1");
+    public void clientHandshake() throws IOException, GeneralSecurityException {
+        KeyPair clientKeys = loadKeys("./keys/client", "./keys/client_pub");
+        PublicKey server_pub = loadKey("./keys/server_pub");
 
         try{
-            byte[] client_encrypted = rsaEncrypt(server_pub, clientKeys.getPublic().getEncoded());
-            //send client_encrypted
-            sendBytes(client_encrypted);
-
+            sendBytes(clientKeys.getPublic().getEncoded());
+            System.out.println("Client pub sent.");//--------------------------
             //gen aes key
             SecretKey aes = genAES();
             byte[] aes_encrypted = rsaEncrypt(server_pub, aes.getEncoded());
             sendBytes(aes_encrypted);
+            System.out.println("AES sent");//------------------------
             //send
 
             //encrypt hash(aes) with client_priv  SIGNATURE
             byte[] sig = signData(clientKeys.getPrivate(), aes.getEncoded());
             sendBytes(sig);
+            System.out.println("Sig sent");//------------------------
             //send sig
 
-            key = aes;
+            key = aes.getEncoded();
         }catch (NoSuchPaddingException | InvalidKeyException | SignatureException
                 | IllegalBlockSizeException | BadPaddingException | NoSuchAlgorithmException e) {
-            e.printStackTrace();
-            //deny connection
+            e.printStackTrace();///----------------------
+            throw new GeneralSecurityException("Secure connection failed.", e);
         }
 
     }
 
-    public void serverHandshake() throws IOException {
-        //load keys         KEYPAIR
-        KeyPair serverKeys = loadKeys("file", "file_pub");
-        //receive client_pub
+    public void serverHandshake() throws IOException, GeneralSecurityException {
+        KeyPair serverKeys = loadKeys("./keys/server", "./keys/server_pub");
 
         try{
-            //decrypt client_pub with server_priv
-            byte[] client_encrypted = receiveBytes();
-            byte[] client_pub_bytes = rsaDecrypt(serverKeys.getPrivate(), client_encrypted);
+            byte[] client_pub_bytes = receiveBytes();
+            System.out.println("received client_pub_bytes: "+client_pub_bytes.length);//-------------------
             PublicKey client_pub = rsaDecodePublicKey(client_pub_bytes);
-
+            System.out.println("decoded public key");//-------------------
             //receive aes key
             //decrypt aes with server_priv
             byte[] aes_encrypted = receiveBytes();
+            System.out.println("received aes_encrypted: "+aes_encrypted.length);//-------------------
             byte[] aes_bytes = rsaDecrypt(serverKeys.getPrivate(), aes_encrypted);
-            SecretKey aes = aesDecodeKey(aes_bytes);
+            System.out.println("decrypted aes key bytes");//-------------------
 
             //receive sig
             byte[] signature = receiveBytes();
-            boolean verifies = verifySignature(client_pub, signature, aes.getEncoded());
+            boolean verifies = verifySignature(client_pub, signature, aes_bytes);
             if(!verifies){
-                throw new IOException("Verification failed.");
+                throw new GeneralSecurityException("Verification failed.");
             }
-            key = aes;
+            key = aes_bytes;
 
         }catch (NoSuchPaddingException | InvalidKeyException | SignatureException | IllegalBlockSizeException | BadPaddingException | NoSuchAlgorithmException | InvalidKeySpecException e) {
-            e.printStackTrace();
-            //deny connection
+            e.printStackTrace();//---------------------------------
+            throw new GeneralSecurityException("Secure connection failed.", e);
         }
-
-
-        //initSession
     }
 
 
     public byte[] rsaDecrypt(PrivateKey key, byte[] data) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
-        Cipher cipher = Cipher.getInstance(ALGORITHM);
+        Cipher cipher = Cipher.getInstance(ASYMMETRIC);
         cipher.init(Cipher.DECRYPT_MODE, key);
         return cipher.doFinal(data);
     }
 
     public byte[] rsaEncrypt(PublicKey key, byte[] data) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
-        Cipher cipher = Cipher.getInstance(ALGORITHM);
+        Cipher cipher = Cipher.getInstance(ASYMMETRIC);
         cipher.init(Cipher.ENCRYPT_MODE, key);
         return cipher.doFinal(data);
     }
@@ -176,7 +175,7 @@ public class SecurityLayer {
         try (ObjectInputStream kf = new ObjectInputStream(Files.newInputStream(Paths.get(keyFile)));
              ObjectInputStream kfp = new ObjectInputStream(Files.newInputStream(Paths.get(keyFilePub)))){
 
-            KeyFactory factory = KeyFactory.getInstance(ALGORITHM);
+            KeyFactory factory = KeyFactory.getInstance(ASYMMETRIC);
 
             BigInteger kfModulus = (BigInteger) kf.readObject();
             BigInteger kfExponent =  (BigInteger) kf.readObject();
@@ -200,7 +199,7 @@ public class SecurityLayer {
             BigInteger exponent = (BigInteger) in.readObject();
 
             RSAPublicKeySpec rsaPublicKeySpec = new RSAPublicKeySpec(modulus, exponent);
-            KeyFactory factory = KeyFactory.getInstance(ALGORITHM);
+            KeyFactory factory = KeyFactory.getInstance(ASYMMETRIC);
             return factory.generatePublic(rsaPublicKeySpec);
 
         } catch (InvalidKeySpecException | NoSuchAlgorithmException | ClassNotFoundException e) {
@@ -209,21 +208,15 @@ public class SecurityLayer {
     }
 
     private SecretKey genAES() throws NoSuchAlgorithmException {
-        KeyGenerator keyGen = KeyGenerator.getInstance("AES");
+        KeyGenerator keyGen = KeyGenerator.getInstance(SYMMETRIC);
         keyGen.init(size); // 256
         return keyGen.generateKey();
     }
 
     private PublicKey rsaDecodePublicKey(byte[] encoded) throws InvalidKeySpecException, NoSuchAlgorithmException {
         X509EncodedKeySpec pubKeySpec = new X509EncodedKeySpec(encoded);
-        KeyFactory keyFactory = KeyFactory.getInstance(ALGORITHM);
+        KeyFactory keyFactory = KeyFactory.getInstance(ASYMMETRIC);
         return keyFactory.generatePublic(pubKeySpec);
-    }
-
-    private SecretKey aesDecodeKey(byte[] encoded) throws NoSuchAlgorithmException, InvalidKeySpecException {
-        SecretKeySpec secretKey = new SecretKeySpec(encoded, "AES");
-        SecretKeyFactory keyFactory = SecretKeyFactory.getInstance("AES");
-        return keyFactory.generateSecret(secretKey);
     }
 }
 
