@@ -5,7 +5,7 @@ import Security.SecurityLayer;
 
 import java.io.*;
 import java.net.Socket;
-import java.util.ArrayList;
+import java.security.GeneralSecurityException;
 
 public class ClientHandler extends Thread{
 
@@ -17,35 +17,33 @@ public class ClientHandler extends Thread{
         this.socket = socket;
         this.index = index;
         securityLayer = new SecurityLayer();
-        //start();
     }
 
+    private void establishSecurity(InputStream in, OutputStream out) throws IOException, GeneralSecurityException {
+        securityLayer.init(in, out);
+        securityLayer.serverHandshake();
+    }
 
     @Override
     public void run() {
-
         try(
                 InputStream in = socket.getInputStream();
-                OutputStream out = socket.getOutputStream();
-                //BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                //ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
-
+                OutputStream out = socket.getOutputStream()
         ){
-            securityLayer.init(in, out);
-            //serverHandshake
-            String request;
-            //ArrayList<String> result;
+            establishSecurity(in, out);
 
             while (true){
-                //out.writeObject("Search: ");
+                sendMessage("Search: ");
                 try{
-                    request = getRequest();
+                    String request = getRequest();
                     String[] result = index.find(request);
                     sendMessage(result);
                 }catch(NullPointerException e){
                     sendMessage("Request error occurred.");
                 }
             }
+        }catch (GeneralSecurityException e){
+            e.printStackTrace();
         }catch (IOException ignored){
         }
         finally {
@@ -56,16 +54,15 @@ public class ClientHandler extends Thread{
             }catch (IOException e){
                 e.printStackTrace();
             }
-
         }
     }
 
-    public String getRequest() throws IOException {
+    public String getRequest() throws IOException, GeneralSecurityException {
         byte[] data = securityLayer.receive();
         return new String(data);
     }
 
-    public void sendMessage(String... message) throws IOException{
+    public void sendMessage(String... message) throws IOException, GeneralSecurityException {
         byte[] data = serializeMessage(message);
         securityLayer.send(data);
     }
