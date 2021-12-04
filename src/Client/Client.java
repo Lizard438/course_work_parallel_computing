@@ -4,9 +4,8 @@ import Security.SecurityLayer;
 
 import java.io.*;
 import java.net.Socket;
-import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
+import java.security.GeneralSecurityException;
 
 public class Client {
 
@@ -14,41 +13,41 @@ public class Client {
     SecurityLayer securityLayer;
     BufferedReader console;
 
-    public static Client connect(String hostName, int portNumber) throws  IOException{
+    public static Client connect(String hostName, int portNumber) throws IOException, GeneralSecurityException {
         Socket socket = null;
         try {
             socket = new Socket(hostName, portNumber);
             Client client = new Client(socket);
             client.establishSecurity(socket.getInputStream(), socket.getOutputStream());
             return client;
-        } catch (IOException e) {
+        } catch (IOException | GeneralSecurityException e) {
             if(socket != null){
                 if(!socket.isClosed()){
                     socket.close();
                 }
             }
-            throw new IOException("Connection failed.", e);
+            throw e;
         }
     }
 
-    Client(Socket socket){
+    private Client(Socket socket){
         this.socket = socket;
         securityLayer = new SecurityLayer();
         console = new BufferedReader( new InputStreamReader(System.in));
     }
 
-    public void establishSecurity(InputStream in, OutputStream out){
+    private void establishSecurity(InputStream in, OutputStream out) throws IOException, GeneralSecurityException {
         securityLayer.init(in, out);
-        //client handshake
+        securityLayer.clientHandshake();
     }
 
-    void downService() throws IOException {
+    public void downService() throws IOException {
         if(!socket.isClosed()){
             socket.close();
         }
     }
 
-    void getMessage() throws IOException, ClassNotFoundException {
+    public void getMessage() throws IOException, ClassNotFoundException, GeneralSecurityException {
         byte[] data = securityLayer.receive();
         String[] message = deserializeMessage(data);
         for (String line : message){
@@ -56,19 +55,18 @@ public class Client {
         }
     }
 
-    String readConsole() throws IOException {
+    public String readConsole() throws IOException {
         return console.readLine();
     }
 
-    public String[] deserializeMessage(byte[] data) throws IOException, ClassNotFoundException {
+    private String[] deserializeMessage(byte[] data) throws IOException, ClassNotFoundException {
         ByteArrayInputStream in = new ByteArrayInputStream(data);
         return (String[]) new ObjectInputStream(in).readObject();
     }
 
-    public void sendMessage(String message) throws IOException {
+    public void sendMessage(String message) throws IOException, GeneralSecurityException {
         securityLayer.send(message.getBytes(StandardCharsets.UTF_8));
     }
-
 
 
     public static void main(String[] args){
@@ -77,7 +75,6 @@ public class Client {
             System.err.println("Usage: java Client <host name> <port number>");
             System.exit(1);
         }
-
         String hostName = args[0];
         int portNumber = Integer.parseInt(args[1]);
         try{
@@ -85,22 +82,21 @@ public class Client {
             try{
                 while (true){
                     client.getMessage();
-
                     String request = client.readConsole();
-
                     client.sendMessage(request);
-
                     client.getMessage();
-                    System.out.println("Press Enter to continue.");
-                    client.readConsole();
-
+                    System.out.println();
                 }
+            }catch (GeneralSecurityException e){
+                e.printStackTrace();
+                client.downService();
             }catch (IOException | ClassNotFoundException e){
                 client.downService();
             }
-
-        }catch(IOException | NullPointerException ignored){}
-
+        }catch(GeneralSecurityException e){
+            e.printStackTrace();
+        }catch(IOException | NullPointerException ignored){
+        }
     }
 
 }
