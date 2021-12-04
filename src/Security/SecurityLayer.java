@@ -4,7 +4,6 @@ import javax.crypto.*;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.*;
 import java.math.BigInteger;
-import java.net.ConnectException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.*;
@@ -18,47 +17,53 @@ public class SecurityLayer {
     public static final String ASYMMETRIC = "RSA";
     public static final String SYMMETRIC = "AES";
     public static final String SIGNATURE = "SHA256withRSA";
-    private static int size = 256;
+    public static final String DIGEST = "SHA-256";
+    public static final int size = 256;//aes
     private DataInputStream in;
     private DataOutputStream out;
     private byte[] key;
+    private MessageDigest messageDigest;
 
-    //hasher
-
-    public void init(InputStream in, OutputStream out){
+    public void init(InputStream in, OutputStream out) throws NoSuchAlgorithmException {
         this.in = new DataInputStream(new BufferedInputStream(in));
         this.out = new DataOutputStream(new BufferedOutputStream(out));
+        messageDigest = MessageDigest.getInstance(DIGEST);
     }
 
-    public void sendBytes(byte[] data) throws IOException {
+    protected void sendBytes(byte[] data) throws IOException {
         out.writeInt(data.length);
         out.write(data);
+        out.write(messageDigest.digest(data));
         out.flush();
     }
 
-    public byte[] receiveBytes() throws IOException {
+    protected byte[] receiveBytes() throws IOException, DigestException {
         int length = in.readInt();
         byte[] data = new byte[length];
         in.readFully(data);
+        byte[] digest = new byte[messageDigest.getDigestLength()];
+        in.readFully(digest);
+        if(!MessageDigest.isEqual(digest, messageDigest.digest(data))){
+            throw new DigestException("Data is corrupted.");
+        }
         return data;
     }
 
-    public byte[] receive() throws IOException {
-        byte[] encrypted = receiveBytes();
+    public byte[] receive() throws IOException, GeneralSecurityException {
         try{
-            byte[] decrypted = decrypt(encrypted);
-            return decrypted;
-            //add digest verification
+            byte[] encrypted = receiveBytes();
+            return decrypt(encrypted);
         }catch(NoSuchPaddingException |
                 NoSuchAlgorithmException |
                 InvalidKeyException |
                 BadPaddingException |
-                IllegalBlockSizeException e){
-            throw new IOException("Decryption failed.", e);
+                IllegalBlockSizeException |
+                DigestException e){
+            throw new GeneralSecurityException("Decryption failed.", e);
         }
     }
 
-    public void send(byte[] data) throws IOException {
+    public void send(byte[] data) throws IOException, GeneralSecurityException {
         try{
             byte[] encrypted = encrypt(data);
             sendBytes(encrypted);
@@ -67,9 +72,8 @@ public class SecurityLayer {
                 InvalidKeyException |
                 BadPaddingException |
                 IllegalBlockSizeException e){
-            e.printStackTrace();
+            throw new GeneralSecurityException("Encryption failed.", e);
         }
-
     }
 
     private byte[] encrypt(byte[] data) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
@@ -79,7 +83,7 @@ public class SecurityLayer {
         return cipher.doFinal(data);
     }
 
-    private byte[] decrypt( byte[] data) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
+    private byte[] decrypt(byte[] data) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
         SecretKeySpec secretKey = new SecretKeySpec(key, SYMMETRIC);
         Cipher cipher = Cipher.getInstance(SYMMETRIC);
         cipher.init(Cipher.DECRYPT_MODE, secretKey);
@@ -89,82 +93,59 @@ public class SecurityLayer {
     public void clientHandshake() throws IOException, GeneralSecurityException {
         KeyPair clientKeys = loadKeys("./keys/client", "./keys/client_pub");
         PublicKey server_pub = loadKey("./keys/server_pub");
-
         try{
             sendBytes(clientKeys.getPublic().getEncoded());
-            System.out.println("Client pub sent.");//--------------------------
-            //gen aes key
             SecretKey aes = genAES();
             byte[] aes_encrypted = rsaEncrypt(server_pub, aes.getEncoded());
             sendBytes(aes_encrypted);
-            System.out.println("AES sent");//------------------------
-            //send
-
-            //encrypt hash(aes) with client_priv  SIGNATURE
             byte[] sig = signData(clientKeys.getPrivate(), aes.getEncoded());
             sendBytes(sig);
-            System.out.println("Sig sent");//------------------------
-            //send sig
-
             key = aes.getEncoded();
         }catch (NoSuchPaddingException | InvalidKeyException | SignatureException
                 | IllegalBlockSizeException | BadPaddingException | NoSuchAlgorithmException e) {
-            e.printStackTrace();///----------------------
             throw new GeneralSecurityException("Secure connection failed.", e);
         }
-
     }
 
     public void serverHandshake() throws IOException, GeneralSecurityException {
         KeyPair serverKeys = loadKeys("./keys/server", "./keys/server_pub");
-
         try{
             byte[] client_pub_bytes = receiveBytes();
-            System.out.println("received client_pub_bytes: "+client_pub_bytes.length);//-------------------
             PublicKey client_pub = rsaDecodePublicKey(client_pub_bytes);
-            System.out.println("decoded public key");//-------------------
-            //receive aes key
-            //decrypt aes with server_priv
             byte[] aes_encrypted = receiveBytes();
-            System.out.println("received aes_encrypted: "+aes_encrypted.length);//-------------------
             byte[] aes_bytes = rsaDecrypt(serverKeys.getPrivate(), aes_encrypted);
-            System.out.println("decrypted aes key bytes");//-------------------
-
-            //receive sig
             byte[] signature = receiveBytes();
             boolean verifies = verifySignature(client_pub, signature, aes_bytes);
             if(!verifies){
                 throw new GeneralSecurityException("Verification failed.");
             }
             key = aes_bytes;
-
         }catch (NoSuchPaddingException | InvalidKeyException | SignatureException | IllegalBlockSizeException | BadPaddingException | NoSuchAlgorithmException | InvalidKeySpecException e) {
-            e.printStackTrace();//---------------------------------
             throw new GeneralSecurityException("Secure connection failed.", e);
         }
     }
 
 
-    public byte[] rsaDecrypt(PrivateKey key, byte[] data) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
+    private byte[] rsaDecrypt(PrivateKey key, byte[] data) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
         Cipher cipher = Cipher.getInstance(ASYMMETRIC);
         cipher.init(Cipher.DECRYPT_MODE, key);
         return cipher.doFinal(data);
     }
 
-    public byte[] rsaEncrypt(PublicKey key, byte[] data) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
+    private byte[] rsaEncrypt(PublicKey key, byte[] data) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
         Cipher cipher = Cipher.getInstance(ASYMMETRIC);
         cipher.init(Cipher.ENCRYPT_MODE, key);
         return cipher.doFinal(data);
     }
 
-    public boolean verifySignature(PublicKey key, byte[] signature, byte[] data) throws InvalidKeyException, SignatureException, NoSuchAlgorithmException {
+    private boolean verifySignature(PublicKey key, byte[] signature, byte[] data) throws InvalidKeyException, SignatureException, NoSuchAlgorithmException {
         Signature sign = Signature.getInstance(SIGNATURE);
         sign.initVerify(key);
         sign.update(data);
         return sign.verify(signature);
     }
 
-    public byte[] signData(PrivateKey key, byte[] data) throws InvalidKeyException, SignatureException, NoSuchAlgorithmException {
+    private byte[] signData(PrivateKey key, byte[] data) throws InvalidKeyException, SignatureException, NoSuchAlgorithmException {
         Signature sign = Signature.getInstance(SIGNATURE);
         sign.initSign(key);
         sign.update(data);
@@ -209,7 +190,7 @@ public class SecurityLayer {
 
     private SecretKey genAES() throws NoSuchAlgorithmException {
         KeyGenerator keyGen = KeyGenerator.getInstance(SYMMETRIC);
-        keyGen.init(size); // 256
+        keyGen.init(size);
         return keyGen.generateKey();
     }
 
